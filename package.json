@@ -1,0 +1,26 @@
+{
+  "name": "mini-tsc",
+  "version": "0.0.1",
+  "description": "Miniature TypeScript compilation API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RyanCavanaugh/mini-tsc.git"
+  },
+  "keywords": [
+    "typescript"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/RyanCavanaugh/mini-tsc/issues"
+  },
+  "homepage": "https://github.com/RyanCavanaugh/mini-tsc#readme",
+  "dependencies": {
+    "@types/node": "^6.0.45",
+    "typescript": "^2.0.3"
+  }
+}
