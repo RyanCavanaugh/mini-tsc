@@ -1,10 +1,14 @@
 {
     "compilerOptions": {
         "module": "commonjs",
-        "target": "es6",
+        "lib": ["es2015.core", "es2016"],
+        "target": "es5",
         "sourceMap": false,
+
+        "declaration": true,
         "rootDir": "./lib",
         "outDir": "./bin",
+
         "noImplicitAny": true,
         "strictNullChecks": true,
         "allowUnreachableCode": false,

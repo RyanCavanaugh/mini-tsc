@@ -2,6 +2,26 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 
+declare module "typescript" {
+    type Option = {
+        name: string;
+        type: "list" | "boolean" | "number" | "string" | ts.Map<number>;
+        element?: Option;
+    }
+
+    const optionDeclarations: Array<Option>;
+}
+
+const tsLibsPath = path.dirname(require.resolve('typescript'));
+
+function  parsePrimitive(value: string, type: string): any {
+    switch(type) {
+        case "number": return +value;
+        case "string": return value;
+        case "boolean": return (value.toLowerCase() === "true") || (value.length === 0);
+    }
+    throw new Error(`Unknown primitive type ${type}`);
+}
 
 class VirtualFileSystem implements ts.CompilerHost {
     private static readonly root: string = '/mini-tsc/';
@@ -12,6 +32,7 @@ class VirtualFileSystem implements ts.CompilerHost {
     private sourceFiles: Map<string, ts.SourceFile> = new Map();
 
     public addFile(fileName: string, content: string): void {
+        fileName = this.getCanonicalFileName(fileName);
         this.files.set(fileName, content);
     }
 
@@ -30,10 +51,11 @@ class VirtualFileSystem implements ts.CompilerHost {
 
     readFile(fileName: string) {
         if (fileName.startsWith(VirtualFileSystem.libRoot)) {
-            return fs.readFileSync(path.join('C:/github/mini-tsc/node_modules/typescript/lib/', path.basename(fileName)), 'utf-8');
+            return fs.readFileSync(path.join(tsLibsPath, path.basename(fileName)), 'utf-8');
         } else {
+            fileName = this.getCanonicalFileName(fileName);
             if (!this.files.has(fileName)) {
-                throw new Error(`File "${fileName} was requested but does not exist`);
+                throw new Error(`File "${fileName}"" was requested but does not exist`);
             }
             return this.files.get(fileName)!;
         }
@@ -44,7 +66,8 @@ class VirtualFileSystem implements ts.CompilerHost {
     }
 
     fileExists(fileName: string) {
-        return this.files.has(fileName);
+        const result = this.files.has(fileName);
+        return result;
     }
 
     getCurrentDirectory(): string {
@@ -56,7 +79,8 @@ class VirtualFileSystem implements ts.CompilerHost {
     }
 
     getCanonicalFileName(fileName: string): string {
-        return path.resolve(VirtualFileSystem.root, fileName).replace(/\\/g, '/');
+        const result = path.posix.resolve(VirtualFileSystem.root, fileName).replace(/\\/g, '/');
+        return result;
     }
 
     useCaseSensitiveFileNames(): boolean {
@@ -68,7 +92,7 @@ class VirtualFileSystem implements ts.CompilerHost {
     /** End CompilerHost implementation **/
 }
 
-interface CompileResult {
+export interface CompileResult {
     emittedFiles: Map<string, string>;
     diagnostics: ts.Diagnostic[];
 }
@@ -100,18 +124,144 @@ export default class Compiler {
 
         const program = ts.createProgram(this.rootFiles, this.options, this.vfs);
         result.diagnostics.push(...program.getSemanticDiagnostics());
+        result.diagnostics.push(...program.getGlobalDiagnostics());
+        result.diagnostics.push(...program.getDeclarationDiagnostics());
+        result.diagnostics.push(...program.getOptionsDiagnostics());
         const emit = program.emit();
         result.diagnostics.push(...emit.diagnostics);
         return result;
     }
+
+    parseOption(name: string, value: string) {
+        for (const opt of ts.optionDeclarations) {
+            if (opt.name.toLowerCase() === name.toLowerCase()) {
+                switch (opt.type) {
+                    case "number":
+                    case "string":
+                    case "boolean":
+                        this.options[opt.name] = parsePrimitive(value, opt.type);
+                        break;
+                    case "list":
+                        this.options[opt.name] = value.split(',').map(v => parsePrimitive(v, opt.element!.type as string));
+                        break;
+
+                    default:
+                        this.options[opt.name] = (opt.type as ts.Map<number>)[value];
+                        break;
+                }
+                return;
+            }
+        }
+
+        throw new Error(`Compiler option ${name} does not exist`);
+    }
+
+
+    renderErrors(diagnostics: ts.Diagnostic[]): string[] {
+        const result: string[] = [];
+        for(const d of diagnostics) {
+            const output: string[] = [];
+
+            if (d.file === undefined) {
+                result.push(ts.flattenDiagnosticMessageText(d.messageText, '\r\n'));
+                continue;
+            }
+
+            const src = d.file.getFullText();
+            // Walk back to the start of the line
+            let lineStart = src.lastIndexOf('\n', d.start);
+            // Handle case where the error is on the first line
+            if (lineStart === -1) lineStart = 0;
+            let lineEnd = src.indexOf('\n', d.start + d.length);
+            if (lineEnd === -1) lineEnd = src.length - 1;
+            let srcLine = '', errLine = '';
+            for(let i = lineStart; i < lineEnd; i++) {
+                if (src[i] === '\n') {
+                    output.push(srcLine);
+                    if (errLine.length) output.push(errLine);
+                    srcLine = errLine = '';
+                } else if(src[i] === '\r') {
+                    // Ignore
+                } else {
+                    srcLine += src[i];
+                    if (i >= d.start && i < d.start + d.length) {
+                        if (src[i] === '\t') {
+                            errLine += '~~~~';
+                        } else {
+                            errLine += '~';
+                        }
+                    } else {
+                        if (/\s/.test(src[i])) {
+                            errLine += src[i];
+                        } else {
+                            errLine += ' ';
+                        }
+                    }
+                }
+            }
+            output.push(srcLine);
+            if (errLine.length) output.push(errLine);
+            const pos = d.file.getLineAndCharacterOfPosition(d.start);
+            output.push(`${d.file.fileName} @L${pos.line + 1}.${pos.character}: TS${d.code} ${d.messageText}`)
+            result.push(output.join('\r\n'));
+        }
+        return result;
+    }
+
+    loadReproFile(content: string, defaultFilename = 'repro.ts') {
+        const booleanOptionRegex = /^\/\/\s?@(\S+)$/;
+        const valueOptionRegex = /^\/\/\s?@([^:]+):\s?(.+)$/;
+
+        const lines = content.split(/\r?\n/g);
+        const currentFileContent: string[] = [];
+        let workingFilename = defaultFilename;
+        for (const line of lines) {
+            if (line.trim().length === 0 && currentFileContent.length === 0) {
+                continue;
+            }
+
+            let m: RegExpExecArray | null;
+            if (m = booleanOptionRegex.exec(line)) {
+                this.parseOption(m[1], "true");
+                this.options[m[1]] = true;
+            } else if (m = valueOptionRegex.exec(line)) {
+                let optName: string = m[1];
+                switch(optName.toLowerCase()) {
+                    case 'filename':
+                        this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
+                        currentFileContent.length = 0;
+                        workingFilename = m[2];
+                        break;
+                    default:
+                        this.parseOption(m[1], m[2]);
+                        break;
+                }
+            } else {
+                currentFileContent.push(line);
+            }
+        }
+        this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
+    }
 }
 
-const c = new Compiler();
-c.addRootFile("a.ts", "let x: string = 42;");
-let r = c.compile();
-console.log(r.diagnostics.map(d => d.messageText).join(','));
-console.log([...r.emittedFiles.keys()].map(k => r.emittedFiles.get(k)).join('\r\n'));
+const repro = `
+//@strictNullchecks: true
+//@traceResolution: true
 
+// @filename: a.ts
+export const m: number = 23;
 
+// @filename: b.ts
+import { m } from './a';
+console.log(m.toFixed('nah'));
+`;
 
+let c = new Compiler();
+c.loadReproFile(repro);
 
+// c.addRootFile('foo.tsx', 'var x = <div></div>');
+let errs = c.renderErrors(c.compile().diagnostics);
+for(const e of errs) {
+    console.log('--- error ---');
+    console.log(e);
+}
