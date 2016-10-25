@@ -1,9 +1,12 @@
 {
   "name": "mini-tsc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Miniature TypeScript compilation API",
   "main": "bin/index.js",
-  "files": ["bin", "README.md"],
+  "files": [
+    "bin",
+    "README.md"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublish": "tsc"
