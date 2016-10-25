@@ -1,6 +1,6 @@
 {
   "name": "mini-tsc",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Miniature TypeScript compilation API",
   "main": "bin/index.js",
   "files": [
