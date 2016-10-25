@@ -228,8 +228,10 @@ export default class Compiler {
                 let optName: string = m[1];
                 switch(optName.toLowerCase()) {
                     case 'filename':
-                        this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
-                        currentFileContent.length = 0;
+                        if (currentFileContent.length > 0) {
+                            this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
+                            currentFileContent.length = 0;
+                        }
                         workingFilename = m[2];
                         break;
                     default:
@@ -242,26 +244,4 @@ export default class Compiler {
         }
         this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
     }
-}
-
-const repro = `
-//@strictNullchecks: true
-//@traceResolution: true
-
-// @filename: a.ts
-export const m: number = 23;
-
-// @filename: b.ts
-import { m } from './a';
-console.log(m.toFixed('nah'));
-`;
-
-let c = new Compiler();
-c.loadReproFile(repro);
-
-// c.addRootFile('foo.tsx', 'var x = <div></div>');
-let errs = c.renderErrors(c.compile().diagnostics);
-for(const e of errs) {
-    console.log('--- error ---');
-    console.log(e);
 }

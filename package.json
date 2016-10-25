@@ -2,9 +2,11 @@
   "name": "mini-tsc",
   "version": "0.0.1",
   "description": "Miniature TypeScript compilation API",
-  "main": "index.js",
+  "main": "bin/index.js",
+  "files": ["bin", "README.md"],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublish": "tsc"
   },
   "repository": {
     "type": "git",
@@ -20,7 +22,7 @@
   },
   "homepage": "https://github.com/RyanCavanaugh/mini-tsc#readme",
   "dependencies": {
-    "@types/node": "^6.0.45",
-    "typescript": "^2.0.3"
+    "@types/node": "latest",
+    "typescript": "latest"
   }
 }
