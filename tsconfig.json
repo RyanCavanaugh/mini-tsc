@@ -1,4 +1,8 @@
 {
+    "files": [
+        "lib/index.ts",
+        "lib/tester.ts"
+    ],
     "compilerOptions": {
         "module": "commonjs",
         "lib": ["es2015.core", "es2016"],

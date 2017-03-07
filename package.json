@@ -9,8 +9,8 @@
     "README.md"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublish": "tsc"
+    "test": "tsc -p . && node bin/tester.js",
+    "prepublish": "tsc -p ."
   },
   "repository": {
     "type": "git",
@@ -27,6 +27,6 @@
   "homepage": "https://github.com/RyanCavanaugh/mini-tsc#readme",
   "dependencies": {
     "@types/node": "latest",
-    "typescript": "latest"
+    "typescript": "^2.3.0-dev.20170307"
   }
 }

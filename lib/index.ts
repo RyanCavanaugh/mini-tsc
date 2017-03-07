@@ -2,6 +2,7 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 
+// Hack in some internal stuff
 declare module "typescript" {
     type Option = {
         name: string;
@@ -12,10 +13,10 @@ declare module "typescript" {
     const optionDeclarations: Array<Option>;
 }
 
-const tsLibsPath = path.dirname(require.resolve('typescript'));
+const defaultTsLibsPath = path.dirname(require.resolve('typescript'));
 
-function  parsePrimitive(value: string, type: string): any {
-    switch(type) {
+function parsePrimitive(value: string, type: string): any {
+    switch (type) {
         case "number": return +value;
         case "string": return value;
         case "boolean": return (value.toLowerCase() === "true") || (value.length === 0);
@@ -31,6 +32,9 @@ class VirtualFileSystem implements ts.CompilerHost {
     private files: Map<string, string> = new Map();
     private sourceFiles: Map<string, ts.SourceFile> = new Map();
 
+    constructor(private tsModule: typeof ts, private libRoot: string) {
+    }
+
     public addFile(fileName: string, content: string): void {
         fileName = this.getCanonicalFileName(fileName);
         this.files.set(fileName, content);
@@ -40,18 +44,18 @@ class VirtualFileSystem implements ts.CompilerHost {
     getSourceFile(fileName: string, languageVersion: ts.ScriptTarget): ts.SourceFile {
         if (!this.sourceFiles.has(fileName)) {
             const src = this.readFile(fileName);
-            this.sourceFiles.set(fileName, ts.createSourceFile(fileName, src, languageVersion));
+            this.sourceFiles.set(fileName, this.tsModule.createSourceFile(fileName, src, languageVersion));
         }
         return this.sourceFiles.get(fileName)!;
     }
 
     getDefaultLibFileName(options: ts.CompilerOptions): string {
-        return path.join(VirtualFileSystem.libRoot, ts.getDefaultLibFileName(options));
+        return path.join(VirtualFileSystem.libRoot, this.tsModule.getDefaultLibFileName(options));
     }
 
     readFile(fileName: string) {
         if (fileName.startsWith(VirtualFileSystem.libRoot)) {
-            return fs.readFileSync(path.join(tsLibsPath, path.basename(fileName)), 'utf-8');
+            return fs.readFileSync(path.join(this.libRoot, path.basename(fileName)), 'utf-8');
         } else {
             fileName = this.getCanonicalFileName(fileName);
             if (!this.files.has(fileName)) {
@@ -86,6 +90,7 @@ class VirtualFileSystem implements ts.CompilerHost {
     useCaseSensitiveFileNames(): boolean {
         return true;
     }
+
     getNewLine(): string {
         return '\r\n';
     }
@@ -98,13 +103,19 @@ export interface CompileResult {
 }
 
 export default class Compiler {
-    private vfs = new VirtualFileSystem();
+    private vfs: VirtualFileSystem;
     private rootFiles: string[] = [];
 
-    options: ts.CompilerOptions = ts.getDefaultCompilerOptions();
+    public options: ts.CompilerOptions;
+    public internalOptions = {
+        regress: false
+    }
 
-    constructor() {
-
+    constructor();
+    constructor(tsModule: typeof ts, libRoot: string);
+    constructor(public tsModule = ts, public libRoot = defaultTsLibsPath) {
+        this.vfs = new VirtualFileSystem(this.tsModule, libRoot)
+        this.options = this.tsModule.getDefaultCompilerOptions();
     }
 
     addRootFile(fileName: string, content: string) {
@@ -122,7 +133,7 @@ export default class Compiler {
             diagnostics: []
         };
 
-        const program = ts.createProgram(this.rootFiles, this.options, this.vfs);
+        const program = this.tsModule.createProgram(this.rootFiles, this.options, this.vfs);
         result.diagnostics.push(...program.getSemanticDiagnostics());
         result.diagnostics.push(...program.getGlobalDiagnostics());
         result.diagnostics.push(...program.getDeclarationDiagnostics());
@@ -133,6 +144,12 @@ export default class Compiler {
     }
 
     parseOption(name: string, value: string) {
+        switch (name.toLowerCase()) {
+            case 'regress':
+                this.internalOptions.regress = parsePrimitive(value, 'boolean');
+                return;
+        }
+
         for (const opt of ts.optionDeclarations) {
             if (opt.name.toLowerCase() === name.toLowerCase()) {
                 switch (opt.type) {
@@ -146,7 +163,7 @@ export default class Compiler {
                         break;
 
                     default:
-                        this.options[opt.name] = (opt.type as ts.Map<number>)[value];
+                        this.options[opt.name] = (opt.type as ts.Map<number> as any)[value];
                         break;
                 }
                 return;
@@ -159,7 +176,7 @@ export default class Compiler {
 
     renderErrors(diagnostics: ts.Diagnostic[]): string[] {
         const result: string[] = [];
-        for(const d of diagnostics) {
+        for (const d of diagnostics) {
             const output: string[] = [];
 
             if (d.file === undefined) {
@@ -175,12 +192,12 @@ export default class Compiler {
             let lineEnd = src.indexOf('\n', d.start + d.length);
             if (lineEnd === -1) lineEnd = src.length - 1;
             let srcLine = '', errLine = '';
-            for(let i = lineStart; i < lineEnd; i++) {
+            for (let i = lineStart; i < lineEnd; i++) {
                 if (src[i] === '\n') {
                     output.push(srcLine);
                     if (errLine.length) output.push(errLine);
                     srcLine = errLine = '';
-                } else if(src[i] === '\r') {
+                } else if (src[i] === '\r') {
                     // Ignore
                 } else {
                     srcLine += src[i];
@@ -199,10 +216,13 @@ export default class Compiler {
                     }
                 }
             }
-            output.push(srcLine);
-            if (errLine.length) output.push(errLine);
+            // Normalize tabs to spaces so the ~s line up correctly
             const pos = d.file.getLineAndCharacterOfPosition(d.start);
-            output.push(`${d.file.fileName} @L${pos.line + 1}.${pos.character}: TS${d.code} ${d.messageText}`)
+            const prefix = `${d.file.fileName}:${pos.line + 1} `;
+            output.push(prefix + srcLine.replace(/\t/g, '    '));
+            // Write out the ~s
+            if (errLine.length) output.push(prefix.replace(/./g, ' ') + errLine);
+            output.push(`  TS${d.code}: ${d.messageText}`)
             result.push(output.join('\r\n'));
         }
         return result;
@@ -226,7 +246,7 @@ export default class Compiler {
                 this.options[m[1]] = true;
             } else if (m = valueOptionRegex.exec(line)) {
                 let optName: string = m[1];
-                switch(optName.toLowerCase()) {
+                switch (optName.toLowerCase()) {
                     case 'filename':
                         if (currentFileContent.length > 0) {
                             this.addRootFile(workingFilename, currentFileContent.join('\r\n'));
