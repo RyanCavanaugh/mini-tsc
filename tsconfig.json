@@ -1,7 +1,8 @@
 {
     "files": [
         "lib/index.ts",
-        "lib/tester.ts"
+        "lib/tester.ts",
+        "lib/cli.ts"
     ],
     "compilerOptions": {
         "module": "commonjs",

@@ -111,11 +111,13 @@ export default class Compiler {
         regress: false
     }
 
-    constructor();
-    constructor(tsModule: typeof ts, libRoot: string);
-    constructor(public tsModule = ts, public libRoot = defaultTsLibsPath) {
+    constructor(version: string);
+    constructor(version: string, tsModule: typeof ts, libRoot: string);
+    constructor(public readonly version: string, public tsModule = ts, public libRoot = defaultTsLibsPath) {
         this.vfs = new VirtualFileSystem(this.tsModule, libRoot)
         this.options = this.tsModule.getDefaultCompilerOptions();
+        // Helpers generate diff noise, suppress them
+        this.options.noEmitHelpers = true;
     }
 
     addRootFile(fileName: string, content: string) {
@@ -134,6 +136,7 @@ export default class Compiler {
         };
 
         const program = this.tsModule.createProgram(this.rootFiles, this.options, this.vfs);
+        result.diagnostics.push(...program.getSyntacticDiagnostics());
         result.diagnostics.push(...program.getSemanticDiagnostics());
         result.diagnostics.push(...program.getGlobalDiagnostics());
         result.diagnostics.push(...program.getDeclarationDiagnostics());
@@ -222,7 +225,8 @@ export default class Compiler {
             output.push(prefix + srcLine.replace(/\t/g, '    '));
             // Write out the ~s
             if (errLine.length) output.push(prefix.replace(/./g, ' ') + errLine);
-            output.push(`  TS${d.code}: ${d.messageText}`)
+            const messageText = ts.flattenDiagnosticMessageText(d.messageText, '\r\n  ');
+            output.push(`  TS${d.code}: ${messageText}`);
             result.push(output.join('\r\n'));
         }
         return result;

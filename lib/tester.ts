@@ -33,13 +33,13 @@ for (let i = 0; i < compilers.length; i++) {
     const comp = compilers[i];
     let c: Compiler;
     if (comp === undefined) {
-        c = new Compiler();
+        c = new Compiler('latest');
         name = ts.version;
     } else {
         const archivePath = `../archive/${comp}/typescript`
         var tsv = require(archivePath);
         name = tsv.version;
-        c = new Compiler(tsv, path.dirname(require.resolve(archivePath)));
+        c = new Compiler(name, tsv, path.dirname(require.resolve(archivePath)));
     }
 
     c.loadReproFile(repro);
