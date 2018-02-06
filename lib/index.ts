@@ -192,7 +192,7 @@ export default class Compiler {
             let lineStart = src.lastIndexOf('\n', d.start);
             // Handle case where the error is on the first line
             if (lineStart === -1) lineStart = 0;
-            let lineEnd = src.indexOf('\n', d.start + d.length);
+            let lineEnd = src.indexOf('\n', d.start! + d.length!);
             if (lineEnd === -1) lineEnd = src.length - 1;
             let srcLine = '', errLine = '';
             for (let i = lineStart; i < lineEnd; i++) {
@@ -204,7 +204,7 @@ export default class Compiler {
                     // Ignore
                 } else {
                     srcLine += src[i];
-                    if (i >= d.start && i < d.start + d.length) {
+                    if (i >= d.start! && i < d.start! + d.length!) {
                         if (src[i] === '\t') {
                             errLine += '~~~~';
                         } else {
@@ -220,7 +220,7 @@ export default class Compiler {
                 }
             }
             // Normalize tabs to spaces so the ~s line up correctly
-            const pos = d.file.getLineAndCharacterOfPosition(d.start);
+            const pos = d.file.getLineAndCharacterOfPosition(d.start!);
             const prefix = `${d.file.fileName}:${pos.line + 1} `;
             output.push(prefix + srcLine.replace(/\t/g, '    '));
             // Write out the ~s

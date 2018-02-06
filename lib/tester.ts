@@ -27,7 +27,6 @@ console.log('```');
 console.log('## Results');
 
 let lastResult = '';
-let lastName = '';
 for (let i = 0; i < compilers.length; i++) {
     let name: string;
     const comp = compilers[i];
@@ -73,7 +72,6 @@ for (let i = 0; i < compilers.length; i++) {
         console.log(`### ${name}: Same as above`);
     }
     lastResult = result;
-    lastName = name;
 
     if (!c.internalOptions.regress) {
         break;
