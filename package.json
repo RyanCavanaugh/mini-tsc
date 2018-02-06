@@ -9,7 +9,7 @@
     "README.md"
   ],
   "bin": {
-    "mini-tsc": "./cmd.js"
+    "mini-tsc": "./cli.js"
   },
   "scripts": {
     "test": "tsc -p . && node bin/tester.js",
