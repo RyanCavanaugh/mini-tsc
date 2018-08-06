@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const commander = require('commander');
 import { create, getAllVersions } from './archive';
 import fs = require('fs');
