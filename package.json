@@ -6,6 +6,7 @@
   "typings": "bin/index.d.ts",
   "files": [
     "bin",
+    "archive/**",
     "README.md"
   ],
   "bin": {
