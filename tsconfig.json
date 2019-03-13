@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "module": "commonjs",
-        "lib": ["es2015.core", "es2016", "es2017", "es2018"],
+        "lib": ["esnext"],
         "target": "es2015",
         "sourceMap": false,
 
