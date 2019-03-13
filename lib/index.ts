@@ -161,12 +161,17 @@ export default class Compiler {
                     case "boolean":
                         this.options[opt.name] = parsePrimitive(value, opt.type);
                         break;
+
                     case "list":
                         this.options[opt.name] = value.split(',').map(v => parsePrimitive(v, opt.element!.type as string));
                         break;
 
                     default:
-                        this.options[opt.name] = (opt.type as ts.Map<number> as any)[value];
+                        this.options[opt.name] = opt.type.get(value.toLowerCase());
+                        if (this.options[opt.name] === undefined) {
+                            const keys = Array.from(opt.type.keys() as any);
+                            throw new Error(`Invalid value ${value} for ${opt.name}. Allowed values: ${keys.join(",")}`);
+                        }
                         break;
                 }
                 return;
